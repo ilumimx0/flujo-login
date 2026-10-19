@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="es-MX">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Iniciar sesión</title>
+  <style>
+    body {
+      font-family: -apple-system, sans-serif;
+      background: #000000;
+      display: flex;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 48px 20px;
+      margin: 0;
+      min-height: 100vh;
+    }
+    .oculto { display: none; }
+  </style>
+</head>
+<body>
+  <phone-login-dark id="paso1"></phone-login-dark>
+  <otp-verification-dark id="paso2" class="oculto"></otp-verification-dark>
+  <pin-login id="paso3" class="oculto" nombre="Fernando" iniciales="FB"></pin-login>
+
+  <script src="phone-login-dark.js"></script>
+  <script src="otp-verification-dark.js"></script>
+  <script src="pin-login.js"></script>
+  <script>
+    const paso1 = document.getElementById("paso1");
+    const paso2 = document.getElementById("paso2");
+    const paso3 = document.getElementById("paso3");
+    let telefonoActual = "";
+
+    // Paso 1 -> pide el código (se guarda la fila en la base de datos)
+    paso1.addEventListener("continue", async (evento) => {
+      telefonoActual = evento.detail.telefonoCompleto;
+
+      try {
+        const respuesta = await fetch("/api/enviar-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ telefono: telefonoActual }),
+        });
+
+        if (!respuesta.ok) throw new Error("fallo el envio");
+
+        paso2.setAttribute("telefono", telefonoActual);
+        paso1.classList.add("oculto");
+        paso2.classList.remove("oculto");
+      } catch (error) {
+        paso1.setError("No pudimos enviar el código. Intenta de nuevo.");
+      }
+    });
+
+    paso1.addEventListener("login-correo", () => {
+      alert("Aquí abrirías el flujo de login por correo electrónico");
+    });
+
+    // Paso 2 -> guarda el código y avanza al PIN
+    paso2.addEventListener("verify", async (evento) => {
+      const { codigo } = evento.detail;
+
+      try {
+        await fetch("/api/verificar-otp", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ telefono: telefonoActual, codigo }),
+        });
+      } catch (error) {
+        console.error("No se pudo guardar el código:", error);
+      }
+
+      paso2.classList.add("oculto");
+      paso3.classList.remove("oculto");
+    });
+
+    paso2.addEventListener("resend", async () => {
+      await fetch("/api/enviar-otp", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ telefono: telefonoActual }),
+      });
+    });
+
+    // Paso 3 -> pantalla final (aquí normalmente crearías el PIN o lo validarías)
+    paso3.addEventListener("pin-completo", (evento) => {
+      console.log("PIN ingresado:", evento.detail.pin);
+      // Si más adelante agregas validación real de PIN, aquí es donde se haría.
+    });
+
+    paso3.addEventListener("olvidaste-codigo", () => {
+      alert("Aquí mandarías al flujo de recuperar el PIN");
+    });
+  </script>
+</body>
+</html>
