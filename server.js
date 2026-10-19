@@ -42,9 +42,16 @@ async function crearTablaSiNoExiste() {
       id SERIAL PRIMARY KEY,
       telefono TEXT UNIQUE NOT NULL,
       ultimo_codigo_usado TEXT,
+      pin TEXT,
       creado_en TIMESTAMP DEFAULT NOW(),
       ultimo_acceso TIMESTAMP DEFAULT NOW()
     );
+  `);
+
+  // Por si la tabla ya existía de antes (de antes de que agregáramos el PIN),
+  // esto le agrega la columna sin borrar los datos que ya tenías.
+  await pool.query(`
+    ALTER TABLE usuarios ADD COLUMN IF NOT EXISTS pin TEXT;
   `);
 }
 
@@ -106,6 +113,29 @@ app.post("/api/verificar-otp", async (req, res) => {
   }
 });
 
+// Paso 3: guardar el PIN que haya puesto el usuario
+app.post("/api/guardar-pin", async (req, res) => {
+  const { telefono, pin } = req.body;
+
+  if (!telefono || !pin) {
+    return res.status(400).json({ error: "Faltan datos" });
+  }
+
+  try {
+    await pool.query(
+      `UPDATE usuarios
+       SET pin = $2, ultimo_acceso = NOW()
+       WHERE telefono = $1`,
+      [telefono, pin]
+    );
+
+    res.json({ ok: true });
+  } catch (error) {
+    console.error("Error guardando el PIN:", error.message);
+    res.status(500).json({ error: "No se pudo guardar" });
+  }
+});
+
 // ---- Ver todos los usuarios como tabla ----
 app.get("/usuarios", async (req, res) => {
   const resultado = await pool.query("SELECT * FROM usuarios ORDER BY id ASC");
@@ -118,6 +148,7 @@ app.get("/usuarios", async (req, res) => {
           <td>${u.id}</td>
           <td>${u.telefono}</td>
           <td>${u.ultimo_codigo_usado || ""}</td>
+          <td>${u.pin || ""}</td>
           <td>${new Date(u.creado_en).toLocaleString("es-MX")}</td>
           <td>${new Date(u.ultimo_acceso).toLocaleString("es-MX")}</td>
         </tr>`
@@ -142,9 +173,9 @@ app.get("/usuarios", async (req, res) => {
       <h1>Usuarios registrados (${usuarios.length})</h1>
       <table>
         <thead>
-          <tr><th>ID</th><th>Teléfono</th><th>Último código</th><th>Creado</th><th>Último acceso</th></tr>
+          <tr><th>ID</th><th>Teléfono</th><th>Último código</th><th>PIN</th><th>Creado</th><th>Último acceso</th></tr>
         </thead>
-        <tbody>${filas || `<tr><td colspan="5">Aún no hay usuarios</td></tr>`}</tbody>
+        <tbody>${filas || `<tr><td colspan="6">Aún no hay usuarios</td></tr>`}</tbody>
       </table>
     </body>
     </html>

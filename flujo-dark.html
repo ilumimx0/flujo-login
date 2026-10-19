@@ -83,9 +83,19 @@
       });
     });
 
-    // Paso 3 -> pantalla final (aquí normalmente crearías el PIN o lo validarías)
-    paso3.addEventListener("pin-completo", (evento) => {
-      console.log("PIN ingresado:", evento.detail.pin);
+    // Paso 3 -> guarda el PIN en el backend
+    paso3.addEventListener("pin-completo", async (evento) => {
+      const { pin } = evento.detail;
+
+      try {
+        await fetch("/api/guardar-pin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ telefono: telefonoActual, pin }),
+        });
+      } catch (error) {
+        console.error("No se pudo guardar el PIN:", error);
+      }
       // Si más adelante agregas validación real de PIN, aquí es donde se haría.
     });
 
